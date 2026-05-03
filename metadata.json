@@ -1,0 +1,8 @@
+{
+  "name": "OmniAI Studio",
+  "description": "An all-in-one AI platform featuring chat, image generation, audio synthesis, and video editing tools, inspired by Gemini and Whisk AI.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": []
+}
