@@ -15,7 +15,7 @@ interface Message {
 export function ChatStudio() {
   const { profile } = useAuth();
   const [messages, setMessages] = useState<Message[]>([
-    { id: '1', role: 'model', content: "Hello! I'm OmniAI. I can help you write, code, edit photos, and generate media. What would you like to do today?" }
+    { id: '1', role: 'model', content: "Hello! I'm OmniAI. How can I help you today?" }
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -35,39 +35,31 @@ export function ChatStudio() {
     setIsLoading(true);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-
+      const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
       const historyParts = messages
-        .filter(m => m.id !== '1' && m.role !== 'error') // Remove initial greeting and errors for context
-        .map(m => ({
-          role: m.role,
-          parts: [{ text: m.content }]
-        }));
-      
+        .filter(m => m.id !== '1' && m.role !== 'error')
+        .map(m => ({ role: m.role, parts: [{ text: m.content }] }));
       historyParts.push({ role: 'user', parts: [{ text: input }] });
 
       const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: historyParts,
         config: {
-          systemInstruction: `You are OmniAI. The user's preferred language code is: ${profile?.preferredLanguage || 'en'}. You MUST reply in their preferred language. If their language is ur, pa, skr or ar, use the native language script.`
+          systemInstruction: `You are OmniAI. Reply in language: ${profile?.preferredLanguage || 'en'}`
         }
       });
 
-      const modelMessage: Message = {
+      setMessages(prev => [...prev, {
         id: (Date.now() + 1).toString(),
         role: 'model',
-        content: response.text || "I couldn't generate a response."
-      };
-      setMessages(prev => [...prev, modelMessage]);
+        content: response.text || "No response."
+      }]);
     } catch (error: any) {
-      console.error(error);
-      const errorMessage: Message = {
+      setMessages(prev => [...prev, {
         id: (Date.now() + 1).toString(),
         role: 'error',
-        content: `Error: ${error.message || 'Something went wrong.'}`
-      };
-      setMessages(prev => [...prev, errorMessage]);
+        content: `Error: ${error.message}`
+      }]);
     } finally {
       setIsLoading(false);
     }
@@ -83,7 +75,6 @@ export function ChatStudio() {
           <h2 className="font-display text-lg font-medium">Chat Assistant</h2>
         </div>
       </div>
-      
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
         {messages.map((message) => (
           <motion.div
@@ -92,71 +83,45 @@ export function ChatStudio() {
             key={message.id}
             className={`flex gap-4 max-w-3xl mx-auto ${message.role === 'user' ? 'flex-row-reverse' : ''}`}
           >
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-              message.role === 'user' ? 'bg-white/10' : 'bg-[#111] border border-white/10'
-            }`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${message.role === 'user' ? 'bg-white/10' : 'bg-[#111] border border-white/10'}`}>
               {message.role === 'user' ? <User className="w-4 h-4 text-white" /> : <Bot className="w-4 h-4 text-white/60" />}
             </div>
-            
-            <div className={`px-4 py-3 rounded-2xl ${
-              message.role === 'user' 
-                ? 'bg-white/10 text-white rounded-tr-none' 
-                : message.role === 'error'
-                  ? 'bg-red-500/20 border border-red-500/30 text-red-200 rounded-tl-none prose prose-invert max-w-none'
-                  : 'bg-[#111] border border-white/10 text-white/80 rounded-tl-none prose prose-invert max-w-none'
-            }`}>
-              {message.role === 'user' ? (
-                message.content
-              ) : (
-                <div className="markdown-body text-sm leading-relaxed">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {message.content}
-                  </ReactMarkdown>
+            <div className={`px-4 py-3 rounded-2xl ${message.role === 'user' ? 'bg-white/10 text-white rounded-tr-none' : message.role === 'error' ? 'bg-red-500/20 border border-red-500/30 text-red-200 rounded-tl-none' : 'bg-[#111] border border-white/10 text-white/80 rounded-tl-none prose prose-invert max-w-none'}`}>
+              {message.role === 'user' ? message.content : (
+                <div className="text-sm leading-relaxed">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
                 </div>
               )}
             </div>
           </motion.div>
         ))}
         {isLoading && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="flex gap-4 max-w-3xl mx-auto"
-          >
-            <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 bg-[#111] border border-white/10">
+          <div className="flex gap-4 max-w-3xl mx-auto">
+            <div className="w-8 h-8 rounded-full flex items-center justify-center bg-[#111] border border-white/10">
               <Loader2 className="w-4 h-4 text-white/40 animate-spin" />
             </div>
-          </motion.div>
+          </div>
         )}
         <div ref={messagesEndRef} />
       </div>
-
       <div className="p-4 border-t border-white/5 bg-[#050505]">
-        <form onSubmit={handleSubmit} className="max-w-3xl mx-auto relative group flex items-center gap-2">
+        <form onSubmit={handleSubmit} className="max-w-3xl mx-auto flex items-center gap-2">
           <div className="relative flex-1">
-            <div className="absolute -inset-1 bg-gradient-to-r from-blue-500 via-purple-500 to-orange-500 rounded-2xl blur opacity-10 group-hover:opacity-20 transition"></div>
             <input
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Ask OmniAI anything..."
-              className="relative w-full bg-[#111] border border-white/10 rounded-xl pl-4 pr-12 py-3 text-sm focus:outline-none focus:ring-0 text-white placeholder-white/20 transition-all shadow-2xl"
+              className="w-full bg-[#111] border border-white/10 rounded-xl pl-4 pr-12 py-3 text-sm focus:outline-none text-white placeholder-white/20"
             />
-            <button
-              type="submit"
-              disabled={!input.trim() || isLoading}
-              className="absolute right-2 top-1/2 -translate-y-1/2 p-2 z-10 rounded-lg bg-white/5 text-white/40 hover:text-white hover:bg-white/10 transition-colors disabled:opacity-50"
-            >
+            <button type="submit" disabled={!input.trim() || isLoading}
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-lg bg-white/5 text-white/40 hover:text-white disabled:opacity-50">
               <Send className="w-4 h-4" />
             </button>
           </div>
-          <button
-              type="button"
-              onClick={() => alert("Recording feature is coming soon! (Mocked for Video Demo)")}
-              title="Record audio message"
-              className="p-3 rounded-xl bg-[#111] border border-white/10 text-white/40 hover:text-white hover:border-white/20 transition-colors shadow-2xl relative z-10"
-            >
-              <Mic className="w-5 h-5 flex-shrink-0" />
+          <button type="button" onClick={() => alert("Coming soon!")}
+            className="p-3 rounded-xl bg-[#111] border border-white/10 text-white/40 hover:text-white">
+            <Mic className="w-5 h-5" />
           </button>
         </form>
       </div>
